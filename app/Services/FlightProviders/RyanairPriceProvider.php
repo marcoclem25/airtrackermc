@@ -4,6 +4,7 @@ namespace App\Services\FlightProviders;
 
 use App\Models\TrackedFlight;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class RyanairPriceProvider implements FlightPriceProviderInterface
 {
@@ -22,6 +23,11 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
 
         $fareResponse = Http::timeout(20)
             ->acceptJson()
+            ->withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept-Language' => 'it-IT,it;q=0.9,en;q=0.8',
+                'Referer' => 'https://www.ryanair.com/',
+            ])
             ->get('https://www.ryanair.com/api/farfnd/v4/oneWayFares', [
                 'departureAirportIataCode' => $flight->origin_iata,
                 'arrivalAirportIataCode' => $flight->destination_iata,
@@ -31,13 +37,29 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
                 'language' => 'it',
             ]);
 
+        Log::info('Ryanair fares response', [
+            'flight_id' => $flight->id,
+            'origin' => $flight->origin_iata,
+            'destination' => $flight->destination_iata,
+            'date' => $date,
+            'status' => $fareResponse->status(),
+            'body_preview' => mb_substr($fareResponse->body(), 0, 1000),
+        ]);
+
         if (! $fareResponse->successful()) {
+            Log::warning('Ryanair provider failed', [
+                'reason' => 'ryanair-http-error',
+                'flight_id' => $flight->id,
+                'status' => $fareResponse->status(),
+            ]);
+
             return [
                 'price' => null,
                 'currency' => 'EUR',
                 'source' => 'ryanair-http-error',
                 'matched_departure_time' => null,
                 'matched_flight_reference' => null,
+                'match_confidence' => null,
             ];
         }
 
@@ -49,12 +71,22 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
             ! is_array($fareData['fares']) ||
             count($fareData['fares']) === 0
         ) {
+            Log::warning('Ryanair provider failed', [
+                'reason' => 'ryanair-no-results',
+                'flight_id' => $flight->id,
+                'fare_data_type' => gettype($fareData),
+                'fare_data_preview' => is_array($fareData)
+                    ? array_slice($fareData, 0, 5, true)
+                    : $fareData,
+            ]);
+
             return [
                 'price' => null,
                 'currency' => 'EUR',
                 'source' => 'ryanair-no-results',
                 'matched_departure_time' => null,
                 'matched_flight_reference' => null,
+                'match_confidence' => null,
             ];
         }
 
@@ -64,18 +96,32 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
         );
 
         if (! $bestFare || ! isset($bestFare['outbound']['price']['value'])) {
+            Log::warning('Ryanair provider failed', [
+                'reason' => 'ryanair-no-price',
+                'flight_id' => $flight->id,
+                'best_fare' => $bestFare,
+            ]);
+
             return [
                 'price' => null,
                 'currency' => 'EUR',
                 'source' => 'ryanair-no-price',
                 'matched_departure_time' => null,
                 'matched_flight_reference' => null,
+                'match_confidence' => null,
             ];
         }
 
         $matchedDepartureTime = $this->extractTimeFromFare($bestFare);
 
         if (! $this->isWithinTimeTolerance($flight->departure_time, $matchedDepartureTime)) {
+            Log::warning('Ryanair provider failed', [
+                'reason' => 'ryanair-time-mismatch',
+                'flight_id' => $flight->id,
+                'saved_time' => $flight->departure_time,
+                'matched_time' => $matchedDepartureTime,
+            ]);
+
             return [
                 'price' => null,
                 'currency' => 'EUR',
@@ -91,7 +137,7 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
             matchedDepartureTime: $matchedDepartureTime
         );
 
-        return [
+        $result = [
             'price' => number_format((float) $bestFare['outbound']['price']['value'], 2, '.', ''),
             'currency' => $bestFare['outbound']['price']['currencyCode'] ?? 'EUR',
             'source' => 'ryanair',
@@ -99,6 +145,13 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
             'matched_flight_reference' => $flightReference,
             'match_confidence' => $this->determineMatchConfidence($flightReference, $matchedDepartureTime),
         ];
+
+        Log::info('Ryanair provider success', [
+            'flight_id' => $flight->id,
+            'result' => $result,
+        ]);
+
+        return $result;
     }
 
     protected function resolveFlightReference(TrackedFlight $flight, ?string $matchedDepartureTime): string
@@ -118,6 +171,11 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
 
         $availabilityResponse = Http::timeout(20)
             ->acceptJson()
+            ->withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept-Language' => 'it-IT,it;q=0.9,en;q=0.8',
+                'Referer' => 'https://www.ryanair.com/',
+            ])
             ->get(
                 "https://www.ryanair.com/api/farfnd/v4/oneWayFares/{$flight->origin_iata}/{$flight->destination_iata}/availabilities",
                 [
@@ -128,7 +186,18 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
                 ]
             );
 
+        Log::info('Ryanair availability response', [
+            'flight_id' => $flight->id,
+            'status' => $availabilityResponse->status(),
+            'body_preview' => mb_substr($availabilityResponse->body(), 0, 1000),
+        ]);
+
         if (! $availabilityResponse->successful()) {
+            Log::warning('Ryanair availability failed', [
+                'flight_id' => $flight->id,
+                'status' => $availabilityResponse->status(),
+            ]);
+
             return null;
         }
 
@@ -137,12 +206,23 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
         $candidates = $this->extractAvailabilityFlights($availabilityData);
 
         if (empty($candidates)) {
+            Log::warning('Ryanair availability empty candidates', [
+                'flight_id' => $flight->id,
+            ]);
+
             return null;
         }
 
-        $bestCandidate = $this->pickClosestAvailabilityByTime($candidates, $matchedDepartureTime ?? $flight->departure_time);
+        $bestCandidate = $this->pickClosestAvailabilityByTime(
+            $candidates,
+            $matchedDepartureTime ?? $flight->departure_time
+        );
 
         if (! $bestCandidate) {
+            Log::warning('Ryanair availability no best candidate', [
+                'flight_id' => $flight->id,
+            ]);
+
             return null;
         }
 
@@ -323,8 +403,11 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
         return ((int) $hours * 60) + (int) $minutes;
     }
 
-    protected function isWithinTimeTolerance(?string $savedTime, ?string $foundTime, int $toleranceMinutes = self::TIME_TOLERANCE_MINUTES): bool
-    {
+    protected function isWithinTimeTolerance(
+        ?string $savedTime,
+        ?string $foundTime,
+        int $toleranceMinutes = self::TIME_TOLERANCE_MINUTES
+    ): bool {
         if (! $savedTime || ! $foundTime) {
             return true;
         }
