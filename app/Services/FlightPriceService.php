@@ -6,6 +6,7 @@ use App\Models\TrackedFlight;
 use App\Services\FlightProviders\EasyJetPriceProvider;
 use App\Services\FlightProviders\RyanairPriceProvider;
 use Illuminate\Support\Facades\Log; // Assicurati di importare Log
+use Carbon\Carbon;
 
 class FlightPriceService
 {
