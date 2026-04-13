@@ -21,7 +21,7 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
     {
         $date = $flight->flight_date->format('Y-m-d');
 
-        $fareResponse = Http::timeout(20)
+        $fareResponse = Http::timeout(8)
             ->acceptJson()
             ->withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -37,14 +37,14 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
                 'language' => 'it',
             ]);
 
-        Log::info('Ryanair fares response', [
+        /*Log::info('Ryanair fares response', [
             'flight_id' => $flight->id,
             'origin' => $flight->origin_iata,
             'destination' => $flight->destination_iata,
             'date' => $date,
             'status' => $fareResponse->status(),
             'body_preview' => mb_substr($fareResponse->body(), 0, 1000),
-        ]);
+        ]); */
 
         if (! $fareResponse->successful()) {
             Log::warning('Ryanair provider failed', [
@@ -71,7 +71,7 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
             ! is_array($fareData['fares']) ||
             count($fareData['fares']) === 0
         ) {
-            Log::warning('Ryanair provider failed', [
+           Log::warning('Ryanair provider failed', [
                 'reason' => 'ryanair-no-results',
                 'flight_id' => $flight->id,
                 'fare_data_type' => gettype($fareData),
@@ -146,10 +146,10 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
             'match_confidence' => $this->determineMatchConfidence($flightReference, $matchedDepartureTime),
         ];
 
-        Log::info('Ryanair provider success', [
+        /*Log::info('Ryanair provider success', [
             'flight_id' => $flight->id,
             'result' => $result,
-        ]);
+        ]);*/
 
         return $result;
     }
@@ -169,7 +169,7 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
     {
         $date = $flight->flight_date->format('Y-m-d');
 
-        $availabilityResponse = Http::timeout(20)
+        $availabilityResponse = Http::timeout(8)
             ->acceptJson()
             ->withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -186,11 +186,11 @@ class RyanairPriceProvider implements FlightPriceProviderInterface
                 ]
             );
 
-        Log::info('Ryanair availability response', [
+        /*Log::info('Ryanair availability response', [
             'flight_id' => $flight->id,
             'status' => $availabilityResponse->status(),
             'body_preview' => mb_substr($availabilityResponse->body(), 0, 1000),
-        ]);
+        ]);*/
 
         if (! $availabilityResponse->successful()) {
             Log::warning('Ryanair availability failed', [
