@@ -227,7 +227,17 @@ export default function Index({ flights }: Props) {
                             {flights.length} {flights.length === 1 ? 'volo monitorato' : 'voli monitorati'}
                         </p>
 
-                        <div className="responsive-grid">
+                        <div
+                            className="responsive-grid"
+                            style={
+                                flights.length === 1
+                                    ? {
+                                          display: 'flex',
+                                          justifyContent: 'center',
+                                      }
+                                    : undefined
+                            }
+                        >
                             {flights.map((flight) => {
                                 const insights = flight.price_insights;
 
@@ -241,6 +251,8 @@ export default function Index({ flights }: Props) {
                                             minHeight: '100%',
                                             height: '100%',
                                             transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                                            maxWidth: flights.length === 1 ? '650px' : undefined,
+                                            width: '100%',
                                         }}
                                         onMouseEnter={(e) => {
                                             e.currentTarget.style.transform = 'translateY(-4px)';
