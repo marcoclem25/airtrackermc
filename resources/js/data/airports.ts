@@ -128,6 +128,8 @@ export const airports: AirportOption[] = [
     { city: 'Memmingen', name: 'Memmingen', iata: 'FMM', country: 'Germania' },
     { city: 'Minorca', name: 'Menorca', iata: 'MAH', country: 'Spagna' },
     { city: 'Milano', name: 'Bergamo Orio al Serio', iata: 'BGY', country: 'Italia' },
+    { city: 'Milano', name: 'Linate', iata: 'LIN', country: 'Italia' },
+    { city: 'Milano', name: 'Malpensa', iata: 'MXP', country: 'Italia' },
     { city: 'Murcia', name: 'Región de Murcia', iata: 'RMU', country: 'Spagna' },
     { city: 'Mykonos', name: 'Mykonos', iata: 'JMK', country: 'Grecia' },
     { city: 'Münster', name: 'Münster Osnabrück', iata: 'FMO', country: 'Germania' },
